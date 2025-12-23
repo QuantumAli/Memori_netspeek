@@ -3,9 +3,9 @@ requires = ["setuptools>=60", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "memori"
-version = "3.1.2"
-description = "Memori Python SDK"
+name = "memori-netspeek"
+version = "4.0.1"
+description = "Memori Python SDK -- Offline integration"
 authors = [{name = "Memori Labs Team", email = "noc@memorilabs.ai"}]
 license = {text = "Apache-2.0"}
 readme = {file = "README.md", content-type = "text/markdown"}
