@@ -1,11 +1,11 @@
 r"""
  __  __                           _
 |  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
+| |\/| |/ _ \ '_ ` _ \ / _ \| '__|_|
 | |  | |  __/ | | | | | (_) | |  | |
 |_|  |_|\___|_| |_| |_|\___/|_|  |_|
                   perfectam memoriam
-                       memorilabs.ai
+                  [offline fork]
 """
 
 import sys
@@ -14,11 +14,34 @@ from typing import Any
 from memori._cli import Cli
 from memori._config import Config
 from memori._setup import Manager as SetupManager
-from memori.api._quota import Manager as ApiQuotaManager
-from memori.api._sign_up import Manager as ApiSignUpManager
-from memori.storage.cockroachdb._cluster_manager import (
-    ClusterManager as CockroachDBClusterManager,
-)
+
+
+def _cloud_feature_removed(name: str):
+    """Factory for cloud feature stubs."""
+
+    class RemovedFeatureManager:
+        def __init__(self, config: Config):
+            self.config = config
+
+        def execute(self):
+            cli = Cli(self.config)
+            cli.notice(
+                f"The '{name}' command has been removed in this offline fork.\n"
+            )
+            cli.notice(
+                "Cloud features (quota, sign-up, cockroachdb cluster management) "
+                "are no longer available.\n"
+            )
+            cli.notice(
+                "This fork operates entirely locally with no connections to "
+                "memorilabs.ai.\n"
+            )
+            sys.exit(1)
+
+        def usage(self):
+            print(f"The '{name}' command is no longer available (cloud feature removed)")
+
+    return RemovedFeatureManager
 
 
 def main():
@@ -27,14 +50,14 @@ def main():
 
     options: dict[str, dict[str, Any]] = {
         "cockroachdb": {
-            "description": "Manager a CockroachDB cluster",
+            "description": "[REMOVED] Cloud cluster management (offline fork)",
             "params": ["cluster", "<start | claim | delete>"],
-            "obj": CockroachDBClusterManager,
+            "obj": _cloud_feature_removed("cockroachdb cluster"),
         },
         "quota": {
-            "description": "Check your quota",
+            "description": "[REMOVED] Cloud quota check (offline fork)",
             "params": [],
-            "obj": ApiQuotaManager,
+            "obj": _cloud_feature_removed("quota"),
         },
         "setup": {
             "description": "Execute suggested setup steps",
@@ -42,9 +65,9 @@ def main():
             "obj": SetupManager,
         },
         "sign-up": {
-            "description": "Sign up for an API key",
+            "description": "[REMOVED] Cloud sign-up (offline fork)",
             "params": ["<email_address>"],
-            "obj": ApiSignUpManager,
+            "obj": _cloud_feature_removed("sign-up"),
         },
     }
 

@@ -90,10 +90,16 @@ class BaseEntityFact:
     def create(self, entity_id: int, facts: list, fact_embeddings: list | None = None):
         raise NotImplementedError
 
+    def update(self, fact_id: int, new_content: str, new_embedding: list[float]):
+        raise NotImplementedError
+
     def get_embeddings(self, entity_id: int, limit: int = 1000):
         raise NotImplementedError
 
     def get_facts_by_ids(self, fact_ids: list[int]):
+        raise NotImplementedError
+
+    def get_by_id(self, fact_id: int) -> dict | None:
         raise NotImplementedError
 
 
@@ -137,4 +143,25 @@ class BaseSchemaVersion:
         raise NotImplementedError
 
     def read(self):
+        raise NotImplementedError
+
+
+class BaseExtractionReasoning:
+    def __init__(self, conn: BaseStorageAdapter):
+        self.conn = conn
+
+    def create(
+        self,
+        entity_id: int,
+        conversation_id: int,
+        fact_content: str,
+        reasoning: str,
+        extraction_type: str,
+        decision: str | None = None,
+        updated_fact_id: int | None = None,
+        embedding_similarity: float | None = None,
+    ):
+        raise NotImplementedError
+
+    def get_by_conversation(self, conversation_id: int) -> list[dict]:
         raise NotImplementedError

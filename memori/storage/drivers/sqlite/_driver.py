@@ -16,6 +16,7 @@ from memori.storage._base import (
     BaseConversationMessages,
     BaseEntity,
     BaseEntityFact,
+    BaseExtractionReasoning,
     BaseKnowledgeGraph,
     BaseProcess,
     BaseProcessAttribute,
@@ -266,6 +267,45 @@ class EntityFact(BaseEntityFact):
         self.conn.commit()
 
         return self
+
+    def update(self, fact_id: int, new_content: str, new_embedding: list[float]):
+        """Update an existing fact with new content and embedding."""
+        from memori._utils import generate_uniq
+        from memori.llm._embeddings import format_embedding_for_db
+
+        embedding_formatted = format_embedding_for_db(new_embedding, "sqlite")
+        uniq = generate_uniq([new_content])
+
+        self.conn.execute(
+            """
+            UPDATE memori_entity_fact
+               SET content = ?,
+                   content_embedding = ?,
+                   uniq = ?,
+                   date_last_time = datetime('now'),
+                   date_updated = datetime('now')
+             WHERE id = ?
+            """,
+            (new_content, embedding_formatted, uniq, fact_id),
+        )
+        self.conn.commit()
+        return self
+
+    def get_by_id(self, fact_id: int) -> dict | None:
+        """Get a single fact by ID."""
+        result = (
+            self.conn.execute(
+                """
+                SELECT id, entity_id, content, content_embedding
+                  FROM memori_entity_fact
+                 WHERE id = ?
+                """,
+                (fact_id,),
+            )
+            .mappings()
+            .fetchone()
+        )
+        return dict(result) if result else None
 
     def get_embeddings(self, entity_id: int, limit: int = 1000):
         return (
@@ -564,6 +604,66 @@ class SchemaVersion(BaseSchemaVersion):
         )
 
 
+class ExtractionReasoning(BaseExtractionReasoning):
+    def create(
+        self,
+        entity_id: int,
+        conversation_id: int,
+        fact_content: str,
+        reasoning: str,
+        extraction_type: str,
+        decision: str | None = None,
+        updated_fact_id: int | None = None,
+        embedding_similarity: float | None = None,
+    ):
+        self.conn.execute(
+            """
+            INSERT INTO memori_extraction_reasoning(
+                uuid,
+                entity_id,
+                conversation_id,
+                fact_content,
+                reasoning,
+                extraction_type,
+                decision,
+                updated_fact_id,
+                embedding_similarity
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid4()),
+                entity_id,
+                conversation_id,
+                fact_content,
+                reasoning,
+                extraction_type,
+                decision,
+                updated_fact_id,
+                embedding_similarity,
+            ),
+        )
+        self.conn.commit()
+        return self
+
+    def get_by_conversation(self, conversation_id: int) -> list[dict]:
+        results = (
+            self.conn.execute(
+                """
+                SELECT id, entity_id, conversation_id, fact_content, reasoning,
+                       extraction_type, decision, updated_fact_id, embedding_similarity,
+                       date_created
+                  FROM memori_extraction_reasoning
+                 WHERE conversation_id = ?
+                 ORDER BY id
+                """,
+                (conversation_id,),
+            )
+            .mappings()
+            .fetchall()
+        )
+        return [dict(row) for row in results]
+
+
 @Registry.register_driver("sqlite")
 class Driver:
     """SQLite storage driver.
@@ -581,6 +681,7 @@ class Driver:
         self.conversation = Conversation(conn)
         self.entity = Entity(conn)
         self.entity_fact = EntityFact(conn)
+        self.extraction_reasoning = ExtractionReasoning(conn)
         self.knowledge_graph = KnowledgeGraph(conn)
         self.process = Process(conn)
         self.process_attribute = ProcessAttribute(conn)

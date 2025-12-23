@@ -1,12 +1,3 @@
-r"""
- __  __                           _
-|  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
-| |  | |  __/ | | | | | (_) | |  | |
-|_|  |_|\___|_| |_| |_|\___/|_|  |_|
-                  perfectam memoriam
-                       memorilabs.ai
-"""
 
 import warnings
 
@@ -25,9 +16,6 @@ class Manager:
                 RuntimeWarning,
                 stacklevel=2,
             )
-            # TODO: Implement enterprise mode
-            # from memori.memory._collector import Collector
-            # Collector(self.config).fire_and_forget(payload)
 
         Writer(self.config).execute(payload)
 

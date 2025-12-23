@@ -1,11 +1,11 @@
 r"""
  __  __                           _
 |  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
+| |\/| |/ _ \ '_ ` _ \ / _ \| '__|_|
 | |  | |  __/ | | | | | (_) | |  | |
 |_|  |_|\___|_| |_| |_|\___/|_|  |_|
                   perfectam memoriam
-                       memorilabs.ai
+                  [offline fork]
 """
 
 import pyfiglet
@@ -20,7 +20,7 @@ class Cli:
     def banner(self):
         self.print(pyfiglet.figlet_format("Memori", font="standard").rstrip())
         self.print(" " * 18 + "perfectam memoriam")
-        self.print(" " * 23 + "memorilabs.ai")
+        self.print(" " * 21 + "[offline fork]")
         self.print(" " * 30 + "v" + str(self.config.version) + "\n")
 
     def newline(self):

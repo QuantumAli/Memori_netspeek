@@ -54,12 +54,16 @@ def find_similar_embeddings(
     if not embeddings:
         return []
 
+    expected_dim = len(query_embedding)
     embeddings_list = []
     id_list = []
 
     for fact_id, raw in embeddings:
         try:
             parsed = parse_embedding(raw)
+            # Skip embeddings with mismatched dimensions
+            if parsed.shape[0] != expected_dim:
+                continue
             embeddings_list.append(parsed)
             id_list.append(fact_id)
         except Exception:

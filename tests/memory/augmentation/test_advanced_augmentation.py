@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -11,6 +11,20 @@ from memori.memory.augmentation.augmentations.memori._augmentation import (
 from memori.memory.augmentation.input import AugmentationInput
 
 
+class DummyExtractor:
+    """Dummy extractor for testing."""
+
+    def __init__(self, response=None):
+        self.response = response or {
+            "entity": {"facts": [], "triples": []},
+            "process": {"attributes": []},
+            "conversation": {"summary": None},
+        }
+
+    async def extract(self, payload):
+        return self.response
+
+
 @pytest.fixture
 def config():
     config = Config()
@@ -18,6 +32,7 @@ def config():
     config.llm.version = "gpt-4"
     config.version = "1.0.0"
     config.storage_config.cockroachdb = False
+    config.augmentation_extractor = DummyExtractor()
     return config
 
 
@@ -85,75 +100,27 @@ async def test_process_no_conversation_id(augmentation, driver):
 
 
 @pytest.mark.asyncio
-async def test_build_api_payload_with_system_prompt(augmentation):
+async def test_build_extraction_payload(augmentation):
+    """Test the extraction payload builder."""
     messages = [{"role": "user", "content": "Test"}]
     summary = "Test summary"
-    system_prompt = "You are helpful"
-    dialect = "postgresql"
-    entity_id = "entity-123"
-    process_id = "process-456"
 
-    payload = augmentation._build_api_payload(
-        messages, summary, system_prompt, dialect, entity_id, process_id
-    )
+    payload = augmentation._build_extraction_payload(messages, summary)
 
     assert payload["conversation"]["messages"] == messages
     assert payload["conversation"]["summary"] == summary
-    assert "system_prompt" not in payload["conversation"]
-    assert payload["meta"]["storage"]["dialect"] == dialect
-    assert payload["meta"]["attribution"]["entity"]["id"] is not None
-    assert payload["meta"]["attribution"]["process"]["id"] is not None
 
 
 @pytest.mark.asyncio
-async def test_build_api_payload_without_system_prompt(augmentation):
+async def test_build_extraction_payload_no_summary(augmentation):
+    """Test extraction payload with no summary."""
     messages = [{"role": "user", "content": "Test"}]
-    summary = "Test summary"
-    system_prompt = None
-    dialect = "mysql"
-    entity_id = None
-    process_id = None
+    summary = ""
 
-    payload = augmentation._build_api_payload(
-        messages, summary, system_prompt, dialect, entity_id, process_id
-    )
+    payload = augmentation._build_extraction_payload(messages, summary)
 
     assert payload["conversation"]["messages"] == messages
-    assert payload["conversation"]["summary"] == summary
-    assert "system_prompt" not in payload["conversation"]
-    assert payload["meta"]["storage"]["dialect"] == dialect
-    assert payload["meta"]["attribution"]["entity"]["id"] is None
-    assert payload["meta"]["attribution"]["process"]["id"] is None
-
-
-@pytest.mark.asyncio
-async def test_build_api_payload_hashes_ids_consistently(augmentation):
-    messages = [{"role": "user", "content": "Test"}]
-    summary = "Test summary"
-    system_prompt = None
-    dialect = "postgresql"
-    entity_id = "user_123"
-    process_id = "checkout_flow"
-
-    payload1 = augmentation._build_api_payload(
-        messages, summary, system_prompt, dialect, entity_id, process_id
-    )
-    payload2 = augmentation._build_api_payload(
-        messages, summary, system_prompt, dialect, entity_id, process_id
-    )
-
-    assert (
-        payload1["meta"]["attribution"]["entity"]["id"]
-        == payload2["meta"]["attribution"]["entity"]["id"]
-    )
-    assert (
-        payload1["meta"]["attribution"]["process"]["id"]
-        == payload2["meta"]["attribution"]["process"]["id"]
-    )
-    assert payload1["meta"]["attribution"]["entity"]["id"] != entity_id
-    assert payload1["meta"]["attribution"]["process"]["id"] != process_id
-    assert len(payload1["meta"]["attribution"]["entity"]["id"]) == 64
-    assert len(payload1["meta"]["attribution"]["process"]["id"]) == 64
+    assert payload["conversation"]["summary"] is None
 
 
 @pytest.mark.asyncio
@@ -309,3 +276,61 @@ async def test_schedule_writes_skips_if_no_data(
     augmentation._schedule_conversation_writes(ctx, memories)
 
     assert len(ctx.writes) == 0
+
+
+@pytest.mark.asyncio
+async def test_extract_memories_with_extractor(config):
+    """Test that extract_memories uses the configured extractor."""
+    expected_response = {
+        "entity": {"facts": ["test fact"], "triples": []},
+        "process": {"attributes": []},
+        "conversation": {"summary": "test summary"},
+    }
+    config.augmentation_extractor = DummyExtractor(expected_response)
+    augmentation = AdvancedAugmentation(config=config)
+
+    payload = {"conversation": {"messages": [{"role": "user", "content": "test"}]}}
+    result = await augmentation._extract_memories(payload)
+
+    assert result == expected_response
+
+
+@pytest.mark.asyncio
+async def test_extract_memories_no_extractor_raises():
+    """Test that missing extractor raises RuntimeError."""
+    config = Config()
+    config.augmentation_extractor = None
+    augmentation = AdvancedAugmentation(config=config)
+
+    payload = {"conversation": {"messages": []}}
+
+    with pytest.raises(RuntimeError) as exc_info:
+        await augmentation._extract_memories(payload)
+
+    assert "No augmentation extractor configured" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_process_with_extractor(config, driver, augmentation_input):
+    """Test full process with a configured extractor."""
+    response = {
+        "entity": {"facts": ["User likes coffee"], "triples": []},
+        "process": {"attributes": ["morning routine"]},
+        "conversation": {"summary": "Discussing preferences"},
+    }
+    config.augmentation_extractor = DummyExtractor(response)
+    augmentation = AdvancedAugmentation(config=config)
+
+    ctx = AugmentationContext(payload=augmentation_input)
+
+    with patch(
+        "memori.memory.augmentation.augmentations.memori._augmentation.embed_texts_async",
+        new_callable=AsyncMock,
+    ) as mock_embed:
+        mock_embed.return_value = [[0.1] * 768]
+
+        result = await augmentation.process(ctx, driver)
+
+        assert "memories" in result.data
+        assert result.data["memories"].entity.facts == ["User likes coffee"]
+        assert result.data["memories"].conversation.summary == "Discussing preferences"

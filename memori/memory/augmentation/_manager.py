@@ -1,11 +1,11 @@
 r"""
  __  __                           _
 |  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
+| |\/| |/ _ \ '_ ` _ \ / _ \| '__|_|
 | |  | |  __/ | | | | | (_) | |  | |
 |_|  |_|\___|_| |_| |_|\___/|_|  |_|
-                 perfectam memoriam
-                      memorilabs.ai
+                  perfectam memoriam
+                  [offline fork]
 """
 
 import asyncio
@@ -41,7 +41,6 @@ class Manager:
         self.db_writer_batch_size = DB_WRITER_BATCH_SIZE
         self.db_writer_batch_timeout = DB_WRITER_BATCH_TIMEOUT
         self.db_writer_queue_size = DB_WRITER_QUEUE_SIZE
-        self._quota_error: Exception | None = None
         self._pending_futures: list[Future[Any]] = []
 
     def start(self, conn: Callable | Any) -> "Manager":
@@ -71,9 +70,6 @@ class Manager:
         return self
 
     def enqueue(self, input_data: AugmentationInput) -> "Manager":
-        if self._quota_error:
-            raise self._quota_error
-
         if not self._active or not self.conn_factory:
             return self
 
@@ -93,14 +89,8 @@ class Manager:
         return self
 
     def _handle_augmentation_result(self, future: Future[Any]) -> None:
-        from memori._exceptions import QuotaExceededError
-
         try:
             future.result()
-        except QuotaExceededError as e:
-            self._quota_error = e
-            self._active = False
-            logger.error(f"Quota exceeded, disabling augmentation: {e}")
         except Exception as e:
             logger.error(f"Augmentation task failed: {e}", exc_info=True)
         finally:
@@ -125,10 +115,6 @@ class Manager:
                             try:
                                 ctx = await aug.process(ctx, driver)
                             except Exception as e:
-                                from memori._exceptions import QuotaExceededError
-
-                                if isinstance(e, QuotaExceededError):
-                                    raise
                                 logger.error(
                                     f"Error in augmentation {aug.__class__.__name__}: {e}",
                                     exc_info=True,
@@ -137,10 +123,6 @@ class Manager:
                     if ctx.writes:
                         self._enqueue_writes(ctx.writes)
             except Exception as e:
-                from memori._exceptions import QuotaExceededError
-
-                if isinstance(e, QuotaExceededError):
-                    raise
                 logger.error(f"Error processing augmentations: {e}", exc_info=True)
 
     def _enqueue_writes(self, writes: list[dict[str, Any]]) -> None:

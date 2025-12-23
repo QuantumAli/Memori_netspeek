@@ -1,16 +1,53 @@
 r"""
  __  __                           _
 |  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
+| |\/| |/ _ \ '_ ` _ \ / _ \| '__|_|
 | |  | |  __/ | | | | | (_) | |  | |
 |_|  |_|\___|_| |_| |_|\___/|_|  |_|
                   perfectam memoriam
-                       memorilabs.ai
+                  [offline fork]
 """
 
 import os
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import version
+from typing import Any, Protocol
+
+
+class AugmentationExtractor(Protocol):
+    """Protocol for augmentation extractors.
+
+    Implement this protocol to provide a custom extractor for augmentation.
+    The extractor must have an async `extract` method that takes a payload dict
+    and returns the extracted memories.
+    """
+
+    async def extract(self, payload: dict) -> dict:
+        """Extract memories from a conversation payload.
+
+        Args:
+            payload: A dictionary containing:
+                - conversation: dict with 'messages' (list) and optional 'summary' (str)
+
+        Returns:
+            A dictionary matching the augmentation response schema:
+            {
+                "entity": {
+                    "facts": [str],
+                    "triples": [{"subject": {"name": str, "type": str},
+                                "predicate": str,
+                                "object": {"name": str, "type": str}}]
+                },
+                "process": {
+                    "attributes": [str]
+                },
+                "conversation": {
+                    "summary": str | None
+                }
+            }
+        """
+        ...
 
 
 class Cache:
@@ -50,6 +87,21 @@ class Config:
         self.storage_config = Storage()
         self.thread_pool_executor = ThreadPoolExecutor(max_workers=15)
         self.version = version("memori")
+
+        # Augmentation extractor configuration (offline fork)
+        # Set this to an object with an async `extract(payload) -> dict` method
+        # or an async callable. If None, augmentation will raise RuntimeError.
+        self.augmentation_extractor: AugmentationExtractor | Callable[[dict], Any] | None = None
+
+        # Default model for Groq-based extraction (when using GroqExtractor)
+        self.augmentation_model: str = "llama-3.3-70b-versatile"
+
+        # Environment variable name for Groq API key
+        self.groq_api_key_env: str = "GROQ_API_KEY"
+
+        # Enable extraction reasoning - logs why each fact was extracted
+        # When enabled, the extractor will also output reasoning per fact
+        self.extraction_reasoning: bool = False
 
     def is_test_mode(self):
         return os.environ.get("MEMORI_TEST_MODE", None) is not None

@@ -1,12 +1,3 @@
-r"""
- __  __                           _
-|  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
-| |  | |  __/ | | | | | (_) | |  | |
-|_|  |_|\___|_| |_| |_|\___/|_|  |_|
-                  perfectam memoriam
-                       memorilabs.ai
-"""
 
 migrations = {
     1: [
@@ -274,5 +265,47 @@ migrations = {
                 )
             """,
         },
-    ]
+    ],
+    2: [
+        {
+            "description": "create table memori_extraction_reasoning",
+            "operation": """
+                CREATE TABLE IF NOT EXISTS memori_extraction_reasoning(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uuid TEXT NOT NULL,
+                    entity_id INTEGER NOT NULL,
+                    conversation_id INTEGER NOT NULL,
+                    fact_content TEXT NOT NULL,
+                    reasoning TEXT NOT NULL,
+                    extraction_type TEXT NOT NULL,
+                    decision TEXT DEFAULT NULL,
+                    updated_fact_id INTEGER DEFAULT NULL,
+                    embedding_similarity REAL DEFAULT NULL,
+                    date_created TEXT NOT NULL DEFAULT (datetime('now')),
+                    --
+                    CONSTRAINT uk_memori_extraction_reasoning_uuid UNIQUE (uuid),
+                    --
+                    CONSTRAINT fk_memori_ext_reasoning_entity
+                       FOREIGN KEY (entity_id)
+                        REFERENCES memori_entity (id)
+                         ON DELETE CASCADE,
+                    CONSTRAINT fk_memori_ext_reasoning_conversation
+                       FOREIGN KEY (conversation_id)
+                        REFERENCES memori_conversation (id)
+                         ON DELETE CASCADE,
+                    CONSTRAINT fk_memori_ext_reasoning_updated_fact
+                       FOREIGN KEY (updated_fact_id)
+                        REFERENCES memori_entity_fact (id)
+                         ON DELETE SET NULL
+                )
+            """,
+        },
+        {
+            "description": "create index on memori_extraction_reasoning for conversation queries",
+            "operation": """
+                CREATE INDEX IF NOT EXISTS idx_memori_extraction_reasoning_conversation
+                ON memori_extraction_reasoning (conversation_id, entity_id)
+            """,
+        },
+    ],
 }

@@ -1,11 +1,11 @@
 r"""
  __  __                           _
 |  \/  | ___ _ __ ___   ___  _ __(_)
-| |\/| |/ _ \ '_ ` _ \ / _ \| '__| |
+| |\/| |/ _ \ '_ ` _ \ / _ \| '__|_|
 | |  | |  __/ | | | | | (_) | |  | |
 |_|  |_|\___|_| |_| |_|\___/|_|  |_|
                   perfectam memoriam
-                       memorilabs.ai
+                  [offline fork]
 """
 
 import os
@@ -13,11 +13,9 @@ from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
 
-import psycopg
-
 from memori._config import Config
 from memori._exceptions import (
-    QuotaExceededError,
+    ExtractorNotConfiguredError,
     warn_if_legacy_memorisdk_installed,
 )
 from memori.llm._providers import Agno as LlmProviderAgno
@@ -28,10 +26,11 @@ from memori.llm._providers import OpenAi as LlmProviderOpenAi
 from memori.llm._providers import PydanticAi as LlmProviderPydanticAi
 from memori.llm._providers import XAi as LlmProviderXAi
 from memori.memory.augmentation import Manager as AugmentationManager
+from memori.memory.augmentation.extractors import GroqExtractor
 from memori.memory.recall import Recall
 from memori.storage import Manager as StorageManager
 
-__all__ = ["Memori", "QuotaExceededError"]
+__all__ = ["Memori", "ExtractorNotConfiguredError", "GroqExtractor"]
 
 warn_if_legacy_memorisdk_installed()
 
@@ -94,6 +93,7 @@ class Memori:
     def _get_default_connection(self) -> Callable[[], Any]:
         connection_string = os.environ.get("MEMORI_COCKROACHDB_CONNECTION_STRING")
         if connection_string:
+            import psycopg
             return lambda: psycopg.connect(connection_string)
 
         raise RuntimeError(
